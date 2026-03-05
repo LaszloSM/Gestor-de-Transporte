@@ -375,13 +375,31 @@ body {
 /* ─── Modal Overlay ───────────────────── */
 .modal-overlay {
   @apply fixed inset-0 z-50 flex items-center justify-center p-4;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .modal-content {
   @apply bg-white rounded-2xl w-full max-h-[90vh] overflow-y-auto;
-  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05);
-  animation: scaleIn 0.2s ease-out;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.08),
+    0 8px 24px -4px rgba(15, 23, 42, 0.12),
+    0 24px 48px -8px rgba(15, 23, 42, 0.18),
+    0 0 80px -16px rgba(99, 102, 241, 0.1);
+  animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 /* ─── Loading Spinner ─────────────────── */

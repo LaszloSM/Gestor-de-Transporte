@@ -37,7 +37,7 @@ export default function RegisterPage() {
 
     try {
       const { data, error } = await auth.signUp(formData.email, formData.password)
-      
+
       if (error) {
         throw error
       }
@@ -48,7 +48,7 @@ export default function RegisterPage() {
           .from('users')
           .update({
             full_name: formData.fullName || formData.email.split('@')[0],
-            role: 'operator',
+            role: 'usuario',
             updated_at: new Date().toISOString(),
           })
           .eq('id', data.user.id)

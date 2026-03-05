@@ -14,15 +14,13 @@ export const isSuperAdminEmail = (email) =>
 export const ROLES = {
   SUPERADMIN: 'superadmin',
   ADMIN: 'admin',
-  COORDINATOR: 'coordinator',
-  OPERATOR: 'operator',
+  USUARIO: 'usuario',
 }
 
 export const ROLE_LABELS = {
   [ROLES.SUPERADMIN]: 'Superusuario',
   [ROLES.ADMIN]: 'Administrador',
-  [ROLES.COORDINATOR]: 'Coordinador',
-  [ROLES.OPERATOR]: 'Operador',
+  [ROLES.USUARIO]: 'Usuario',
 }
 
 // Estados de solicitud
@@ -98,21 +96,7 @@ export const ROLE_PERMISSIONS = {
     manage_users: true,
     create_admin: false,
   },
-  [ROLES.COORDINATOR]: {
-    create_request: false,
-    view_all_requests: true,
-    view_own_requests: true,
-    assign_transport: true,
-    set_in_route: true,
-    complete_request: true,
-    cancel_request: true,
-    send_whatsapp: true,
-    delete_request: false,
-    view_audit: false,
-    manage_users: false,
-    create_admin: false,
-  },
-  [ROLES.OPERATOR]: {
+  [ROLES.USUARIO]: {
     create_request: true,
     view_all_requests: false,
     view_own_requests: true,

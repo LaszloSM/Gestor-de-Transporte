@@ -5,15 +5,20 @@ import { db } from '../services/supabase'
 import { ROLES, ROLE_LABELS, isSuperAdminEmail } from '../config'
 import toast from 'react-hot-toast'
 
-const ROLE_OPTIONS = [
-  { value: ROLES.ADMIN, label: ROLE_LABELS[ROLES.ADMIN] },
-  { value: ROLES.COORDINATOR, label: ROLE_LABELS[ROLES.COORDINATOR] },
-  { value: ROLES.OPERATOR, label: ROLE_LABELS[ROLES.OPERATOR] },
-]
-
 export default function UsersPage() {
   const { userProfile, user, hasPermission, isSuperAdmin: checkIsSuperAdmin } = useAuthStore()
   const canManage = hasPermission('manage_users')
+  const canCreateAdmin = hasPermission('create_admin')
+
+  // Role options based on permissions
+  const ROLE_OPTIONS = canCreateAdmin
+    ? [
+      { value: ROLES.ADMIN, label: ROLE_LABELS[ROLES.ADMIN] },
+      { value: ROLES.USUARIO, label: ROLE_LABELS[ROLES.USUARIO] },
+    ]
+    : [
+      { value: ROLES.USUARIO, label: ROLE_LABELS[ROLES.USUARIO] },
+    ]
 
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -21,7 +26,7 @@ export default function UsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [formEdit, setFormEdit] = useState({ full_name: '', role: '', active: true })
-  const [formCreate, setFormCreate] = useState({ email: '', password: '', full_name: '', role: ROLES.OPERATOR })
+  const [formCreate, setFormCreate] = useState({ email: '', password: '', full_name: '', role: ROLES.USUARIO })
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -42,7 +47,7 @@ export default function UsersPage() {
 
   const openEdit = (u) => {
     setEditingUser(u)
-    setFormEdit({ full_name: u.full_name || '', role: u.role || ROLES.OPERATOR, active: u.active !== false })
+    setFormEdit({ full_name: u.full_name || '', role: u.role || ROLES.USUARIO, active: u.active !== false })
   }
 
   const handleSaveEdit = async () => {
@@ -51,6 +56,11 @@ export default function UsersPage() {
     try {
       const payload = { full_name: formEdit.full_name.trim() || null, active: formEdit.active }
       if (!isSuperAdminEmail(editingUser.email)) {
+        // Admin can't assign admin role unless they have create_admin permission
+        if (formEdit.role === 'admin' && !canCreateAdmin) {
+          toast.error('No tienes permiso para asignar el rol de Administrador')
+          return
+        }
         payload.role = formEdit.role
       }
       await db.updateUserProfile(editingUser.id, payload)
@@ -99,12 +109,18 @@ export default function UsersPage() {
     if (!email?.trim()) { toast.error('El correo es obligatorio'); return }
     if (!password || password.length < 6) { toast.error('Contraseña mínima: 6 caracteres'); return }
 
+    // Prevent admin from creating admin users
+    if (role === 'admin' && !canCreateAdmin) {
+      toast.error('No tienes permiso para crear administradores')
+      return
+    }
+
     setCreating(true)
     try {
-      await db.createUser(email.trim(), password, full_name?.trim() || '', role || ROLES.OPERATOR)
+      await db.createUser(email.trim(), password, full_name?.trim() || '', role || ROLES.USUARIO)
       await loadUsers()
       setShowCreateModal(false)
-      setFormCreate({ email: '', password: '', full_name: '', role: ROLES.OPERATOR })
+      setFormCreate({ email: '', password: '', full_name: '', role: ROLES.USUARIO })
       toast.success('Usuario creado exitosamente')
     } catch (error) {
       toast.error(error.message || 'Error al crear usuario')
@@ -203,16 +219,31 @@ export default function UsersPage() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="modal-overlay animate-fade-in" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-slate-900">Crear Usuario</h2>
-              <button onClick={() => setShowCreateModal(false)} className="btn-icon">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Crear Usuario</h2>
+                    <p className="text-xs text-slate-500">Registra un nuevo usuario en el sistema</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowCreateModal(false)} className="btn-icon hover:bg-slate-100 rounded-xl">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <form onSubmit={handleCreateUser} className="space-y-4">
+
+            {/* Modal Body */}
+            <form onSubmit={handleCreateUser} className="px-6 py-5 space-y-4">
               <div className="form-group">
                 <label className="form-label">Correo Electrónico</label>
                 <input type="email" value={formCreate.email} onChange={(e) => setFormCreate(f => ({ ...f, email: e.target.value }))} className="input-field" placeholder="usuario@ejemplo.com" required />
@@ -223,7 +254,7 @@ export default function UsersPage() {
               </div>
               <div className="form-group">
                 <label className="form-label">Nombre Completo</label>
-                <input type="text" value={formCreate.full_name} onChange={(e) => setFormCreate(f => ({ ...f, full_name: e.target.value }))} className="input-field" placeholder="Nombre" />
+                <input type="text" value={formCreate.full_name} onChange={(e) => setFormCreate(f => ({ ...f, full_name: e.target.value }))} className="input-field" placeholder="Nombre del usuario" />
               </div>
               <div className="form-group">
                 <label className="form-label">Rol</label>
@@ -232,12 +263,21 @@ export default function UsersPage() {
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-400 mt-1">El rol Superusuario solo puede asignarse desde la base de datos.</p>
+                {!canCreateAdmin && (
+                  <p className="text-xs text-slate-400 mt-1">Solo los superusuarios pueden crear administradores.</p>
+                )}
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => { setShowCreateModal(false); setFormCreate({ email: '', password: '', full_name: '', role: ROLES.OPERATOR }) }} className="flex-1 btn-secondary">Cancelar</button>
+
+              {/* Modal Footer */}
+              <div className="flex gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => { setShowCreateModal(false); setFormCreate({ email: '', password: '', full_name: '', role: ROLES.USUARIO }) }} className="flex-1 btn-secondary">Cancelar</button>
                 <button type="submit" disabled={creating} className="flex-1 btn-primary">
-                  {creating ? 'Creando...' : 'Crear Usuario'}
+                  {creating ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />
+                      Creando...
+                    </span>
+                  ) : 'Crear Usuario'}
                 </button>
               </div>
             </form>
@@ -248,17 +288,31 @@ export default function UsersPage() {
       {/* Edit Modal */}
       {editingUser && (
         <div className="modal-overlay animate-fade-in" onClick={() => setEditingUser(null)}>
-          <div className="modal-content max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-slate-900">Editar Usuario</h2>
-              <button onClick={() => setEditingUser(null)} className="btn-icon">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Editar Usuario</h2>
+                    <p className="text-xs text-slate-500 truncate max-w-[240px]">{editingUser.email}</p>
+                  </div>
+                </div>
+                <button onClick={() => setEditingUser(null)} className="btn-icon hover:bg-slate-100 rounded-xl">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <p className="text-sm text-slate-500 mb-4 truncate">{editingUser.email}</p>
-            <div className="space-y-4">
+
+            {/* Modal Body */}
+            <div className="px-6 py-5 space-y-4">
               <div className="form-group">
                 <label className="form-label">Nombre Completo</label>
                 <input type="text" value={formEdit.full_name} onChange={(e) => setFormEdit(f => ({ ...f, full_name: e.target.value }))} className="input-field" />
@@ -282,10 +336,17 @@ export default function UsersPage() {
                 </label>
               )}
             </div>
-            <div className="flex gap-3 mt-6">
+
+            {/* Modal Footer */}
+            <div className="px-6 pb-6 flex gap-3">
               <button onClick={() => setEditingUser(null)} className="flex-1 btn-secondary">Cancelar</button>
               <button onClick={handleSaveEdit} disabled={updatingId === editingUser.id} className="flex-1 btn-primary">
-                {updatingId === editingUser.id ? 'Guardando...' : 'Guardar'}
+                {updatingId === editingUser.id ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />
+                    Guardando...
+                  </span>
+                ) : 'Guardar'}
               </button>
             </div>
           </div>

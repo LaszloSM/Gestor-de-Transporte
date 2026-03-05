@@ -32,7 +32,7 @@ export default function AssignmentModal({ request, isOpen, onClose, onAssign }) 
       const { data, error } = await supabase
         .from('users')
         .select('id, full_name, email, active')
-        .in('role', ['coordinator', 'admin', 'superadmin'])
+        .in('role', ['usuario', 'admin', 'superadmin'])
       if (error) throw error
       const list = (data || []).filter((u) => u.active !== false)
       setCoordinators(list)

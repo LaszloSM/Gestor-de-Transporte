@@ -11,7 +11,7 @@ export const useLoadRequests = () => {
   const currentEmail = userProfile?.email || user?.email
   const effectiveRole = isSuperAdminEmail(currentEmail)
     ? 'superadmin'
-    : (userProfile?.role || 'operator')
+    : (userProfile?.role || 'usuario')
 
   const userId = userProfile?.id
 

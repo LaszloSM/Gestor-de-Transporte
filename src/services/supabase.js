@@ -53,9 +53,18 @@ const REQUEST_SELECT = `
 const REQUEST_SELECT_SIMPLE = '*'
 
 // ─── Database ────────────────────────────────────────
+
+// Helper: ensure user is authenticated before critical operations
+const ensureAuthenticated = async () => {
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) throw new Error('No autenticado. Inicia sesión nuevamente.')
+  return user
+}
+
 export const db = {
   // ── Solicitudes ──
   createRequest: async (request, userId) => {
+    await ensureAuthenticated()
     const { data, error } = await supabase
       .from('requests')
       .insert([{
@@ -72,7 +81,7 @@ export const db = {
     let query = supabase.from('requests').select(REQUEST_SELECT)
 
     // Filtrar según el rol del usuario
-    if (userRole === 'operator') {
+    if (userRole === 'usuario') {
       query = query.eq('created_by', userId)
     }
     // Admin, superadmin y coordinator ven todas
@@ -101,6 +110,7 @@ export const db = {
   },
 
   updateRequest: async (id, updates) => {
+    await ensureAuthenticated()
     const { data, error } = await supabase
       .from('requests')
       .update({
@@ -188,6 +198,7 @@ export const db = {
   },
 
   deleteRequest: async (id) => {
+    await ensureAuthenticated()
     const { error } = await supabase.from('requests').delete().eq('id', id)
     if (error) throw error
   },
@@ -223,6 +234,7 @@ export const db = {
   },
 
   createUser: async (email, password, full_name, role) => {
+    await ensureAuthenticated()
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -230,7 +242,7 @@ export const db = {
     if (error) throw error
     if (!data?.user?.id) throw new Error('No se pudo crear el usuario')
     const userId = data.user.id
-    const updates = { full_name: (full_name && full_name.trim()) || null, role: role || 'operator' }
+    const updates = { full_name: (full_name && full_name.trim()) || null, role: role || 'usuario' }
     // Esperar a que el trigger cree el registro en public.users
     await new Promise((r) => setTimeout(r, 800))
     const { data: updated, error: err2 } = await supabase

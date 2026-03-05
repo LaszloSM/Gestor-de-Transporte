@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores'
-import { isSuperAdminEmail } from './config'
+import { isSuperAdminEmail, ROLE_PERMISSIONS } from './config'
 import { Toaster } from 'react-hot-toast'
 import { supabase } from './services/supabase'
 
@@ -17,11 +17,16 @@ import UsersPage from './pages/UsersPage'
 // Components
 import Layout from './components/Layout'
 
-// Protected route: requires authenticated user
+// Protected route: requires authenticated + active user
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuthStore()
+  const { user, userProfile, loading } = useAuthStore()
   if (loading) return <LoadingScreen />
-  return user ? children : <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/login" replace />
+  // Block inactive users
+  if (userProfile && userProfile.active === false) {
+    return <Navigate to="/login" replace />
+  }
+  return children
 }
 
 // Admin+Superadmin route
@@ -29,8 +34,27 @@ const AdminRoute = ({ children }) => {
   const { user, userProfile, loading } = useAuthStore()
   if (loading) return <LoadingScreen />
   if (!user) return <Navigate to="/login" replace />
+  if (userProfile && userProfile.active === false) {
+    return <Navigate to="/login" replace />
+  }
   const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'superadmin' || isSuperAdminEmail(userProfile?.email || user?.email)
   if (!isAdmin) return <Navigate to="/dashboard" replace />
+  return children
+}
+
+// Permission-based route guard
+const PermissionRoute = ({ permission, children }) => {
+  const { user, userProfile, loading } = useAuthStore()
+  if (loading) return <LoadingScreen />
+  if (!user) return <Navigate to="/login" replace />
+  if (userProfile && userProfile.active === false) {
+    return <Navigate to="/login" replace />
+  }
+  const effectiveRole = isSuperAdminEmail(userProfile?.email || user?.email)
+    ? 'superadmin'
+    : userProfile?.role
+  const hasPermission = effectiveRole && ROLE_PERMISSIONS[effectiveRole]?.[permission]
+  if (!hasPermission) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -138,7 +162,11 @@ export default function App() {
                 <Routes>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/requests" element={<RequestsListPage />} />
-                  <Route path="/new-request" element={<NewRequestPage />} />
+                  <Route path="/new-request" element={
+                    <PermissionRoute permission="create_request">
+                      <NewRequestPage />
+                    </PermissionRoute>
+                  } />
                   <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
                   <Route path="/audit" element={<AdminRoute><AuditPage /></AdminRoute>} />
                   <Route path="/profile" element={<ProfilePage />} />

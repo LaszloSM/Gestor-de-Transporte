@@ -12,7 +12,7 @@ const NAV_ITEMS = [
     ),
     label: 'Dashboard',
     path: '/dashboard',
-    roles: ['superadmin', 'admin', 'coordinator', 'operator'],
+    roles: ['superadmin', 'admin', 'usuario'],
   },
   {
     icon: (
@@ -22,7 +22,7 @@ const NAV_ITEMS = [
     ),
     label: 'Solicitudes',
     path: '/requests',
-    roles: ['superadmin', 'admin', 'coordinator', 'operator'],
+    roles: ['superadmin', 'admin', 'usuario'],
   },
   {
     icon: (
@@ -32,7 +32,7 @@ const NAV_ITEMS = [
     ),
     label: 'Nueva Solicitud',
     path: '/new-request',
-    roles: ['superadmin', 'admin', 'operator'],
+    roles: ['superadmin', 'admin', 'usuario'],
   },
   {
     icon: (
@@ -100,8 +100,8 @@ export default function Sidebar() {
                 type="button"
                 onClick={() => navigate(item.path)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 group relative ${isActive
-                    ? 'bg-sidebar-active text-white'
-                    : 'text-sidebar-text hover:text-sidebar-text-active hover:bg-sidebar-hover'
+                  ? 'bg-sidebar-active text-white'
+                  : 'text-sidebar-text hover:text-sidebar-text-active hover:bg-sidebar-hover'
                   }`}
                 title={!sidebarOpen ? item.label : undefined}
               >
