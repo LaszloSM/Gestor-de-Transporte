@@ -189,7 +189,7 @@ export default function RequestsListPage() {
       </Card>
 
       <Card className="shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -273,6 +273,99 @@ export default function RequestsListPage() {
               )}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Mobile View - Cards */}
+        <div className="grid grid-cols-1 gap-4 md:hidden p-4">
+          {filteredRequests.map((req) => (
+            <Card key={req.id} className="cursor-pointer hover:border-primary/50 transition-colors shadow-sm" onClick={() => setDetailRequest(req)}>
+              <CardContent className="p-4 flex flex-col gap-3">
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <h3 className="font-semibold text-base leading-none">{req.passenger_name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> {req.passenger_phone || 'Sin número'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <StatusBadge state={req.state} />
+                    {isAdmin && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 -mt-2">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {req.state === 'pending' && (
+                            <DropdownMenuItem onClick={() => { setAssignRequest(req); setDriverName(''); setDriverPhone(''); setAssignTo(''); }}>
+                              <UserPlus className="mr-2 h-4 w-4" /> Asignar Conductor
+                            </DropdownMenuItem>
+                          )}
+                          {req.state === 'assigned' && (
+                            <DropdownMenuItem onClick={() => handleStateChange(req, 'in_route')}>
+                              <Navigation className="mr-2 h-4 w-4" /> Marcar en Ruta
+                            </DropdownMenuItem>
+                          )}
+                          {(req.state === 'assigned' || req.state === 'in_route') && (
+                            <DropdownMenuItem onClick={() => handleStateChange(req, 'completed')}>
+                              <CheckCircle2 className="mr-2 h-4 w-4" /> Completar
+                            </DropdownMenuItem>
+                          )}
+                          {(req.state === 'pending' || req.state === 'assigned') && (
+                            <DropdownMenuItem onClick={() => handleStateChange(req, 'cancelled')}>
+                              <XCircle className="mr-2 h-4 w-4" /> Cancelar
+                            </DropdownMenuItem>
+                          )}
+                          {(req.state === 'completed' || req.state === 'cancelled') && (
+                            <DropdownMenuItem onClick={() => handleStateChange(req, 'reopen')}>
+                              <RotateCcw className="mr-2 h-4 w-4" /> Reabrir
+                            </DropdownMenuItem>
+                          )}
+                          {req.driver_phone && (
+                            <DropdownMenuItem onClick={() => handleWhatsApp(req)}>
+                              <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleDelete(req)} className="text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm mt-1 bg-muted/30 p-2 rounded-md">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground uppercase font-medium">Origen</span>
+                    <span className="truncate">{req.origin}</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground uppercase font-medium">Destino</span>
+                    <span className="truncate">{req.destination}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <UsersIcon className="h-3 w-3" /> {req.quantity || 1} {req.quantity > 1 ? 'personas' : 'persona'}
+                  </span>
+                  <span className="flex items-center gap-1 font-medium bg-secondary px-2 py-0.5 rounded-full">
+                    {VEHICLE_TYPE_LABELS[req.vehicle_type] || req.vehicle_type}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> {req.time || '—'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {filteredRequests.length === 0 && (
+            <div className="text-center text-muted-foreground py-8 border rounded-lg border-dashed">
+              No se encontraron solicitudes
+            </div>
+          )}
         </div>
       </Card>
 

@@ -124,7 +124,7 @@ export default function UsersPage() {
       </div>
 
       <Card className="shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -160,6 +160,41 @@ export default function UsersPage() {
               ))}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Mobile View - Cards */}
+        <div className="grid grid-cols-1 gap-4 md:hidden p-4">
+          {users.map((u) => (
+            <Card key={u.id} className="shadow-sm">
+              <div className="p-4 flex flex-col gap-3">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="overflow-hidden">
+                    <h3 className="font-semibold text-base leading-none truncate">{u.full_name || 'Usuario'}</h3>
+                    <p className="text-sm text-muted-foreground mt-1 truncate">{u.email}</p>
+                  </div>
+                  {!isProtectedUser(u) && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 -mr-2 -mt-2" onClick={() => setEditUser({ ...u })}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  {roleBadge(u.role)}
+                  <Badge
+                    variant={u.active !== false ? 'secondary' : 'outline'}
+                    className={`text-xs ${u.active !== false ? 'bg-emerald-100 text-emerald-800' : 'text-muted-foreground'}`}
+                  >
+                    {u.active !== false ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                </div>
+              </div>
+            </Card>
+          ))}
+          {users.length === 0 && (
+            <div className="text-center text-muted-foreground py-8 border rounded-lg border-dashed">
+              No se encontraron usuarios
+            </div>
+          )}
         </div>
       </Card>
 

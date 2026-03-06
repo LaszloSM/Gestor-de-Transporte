@@ -55,7 +55,7 @@ export default function AuditPage() {
       </div>
 
       <Card className="shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -93,6 +93,38 @@ export default function AuditPage() {
               )}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Mobile View - Cards */}
+        <div className="grid grid-cols-1 gap-4 md:hidden p-4">
+          {logs.map((log) => (
+            <Card key={log.id} className="shadow-sm">
+              <div className="p-4 flex flex-col gap-2">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">{log.action}</span>
+                    <Badge variant="outline" className="text-[10px] leading-none px-1.5 py-0.5">{log.resource_type || '—'}</Badge>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(log.created_at)}</span>
+                </div>
+                <div className="flex flex-col gap-1 mt-1">
+                  <span className="text-sm text-muted-foreground flex items-center gap-1">
+                    <span className="text-foreground font-medium">Por:</span> {log.user?.full_name || log.user?.email || '—'}
+                  </span>
+                  {log.new_values && (
+                    <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md mt-1 truncate">
+                      {JSON.stringify(log.new_values)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ))}
+          {logs.length === 0 && !loading && (
+            <div className="text-center text-muted-foreground py-8 border rounded-lg border-dashed">
+              No hay registros de auditoría
+            </div>
+          )}
         </div>
       </Card>
     </div>
