@@ -234,26 +234,78 @@ export const db = {
   },
 
   createUser: async (email, password, full_name, role) => {
-    await ensureAuthenticated()
+    // 1. Save the current admin session before signup
+    const { data: { session: adminSession } } = await supabase.auth.getSession()
+    if (!adminSession) throw new Error('No autenticado. Inicia sesión nuevamente.')
+
+    // 2. Create the auth user via signUp
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: {
+        data: { full_name: (full_name && full_name.trim()) || '', role: role || 'usuario' },
+      },
     })
     if (error) throw error
     if (!data?.user?.id) throw new Error('No se pudo crear el usuario')
     const userId = data.user.id
-    const updates = { full_name: (full_name && full_name.trim()) || null, role: role || 'usuario' }
-    // Esperar a que el trigger cree el registro en public.users
-    await new Promise((r) => setTimeout(r, 800))
-    const { data: updated, error: err2 } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single()
-    if (err2) throw err2
 
-    // Registrar en auditoría
+    // 3. Immediately restore the admin session (signUp may have replaced it)
+    try {
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      })
+    } catch (_) {
+      // If restoring fails, try refreshing
+      try { await supabase.auth.refreshSession() } catch (__) { /* ignore */ }
+    }
+
+    // 4. Wait for the trigger to create the user row, then update profile
+    const updates = { full_name: (full_name && full_name.trim()) || null, role: role || 'usuario' }
+    let updated = null
+
+    // Retry loop: wait for trigger to create the public.users row
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await new Promise((r) => setTimeout(r, 600))
+
+      // Try update first (trigger may have created the row)
+      const { data: updData, error: updErr } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', userId)
+        .select()
+        .single()
+
+      if (!updErr && updData) {
+        updated = updData
+        break
+      }
+
+      // If no row exists yet, try upserting (create the row ourselves)
+      if (attempt >= 2) {
+        const { data: upsData, error: upsErr } = await supabase
+          .from('users')
+          .upsert({
+            id: userId,
+            email: email.trim(),
+            full_name: (full_name && full_name.trim()) || null,
+            role: role || 'usuario',
+            active: true,
+          }, { onConflict: 'id' })
+          .select()
+          .single()
+
+        if (!upsErr && upsData) {
+          updated = upsData
+          break
+        }
+      }
+    }
+
+    if (!updated) throw new Error('Usuario creado en auth pero no se pudo guardar el perfil. Intente actualizar manualmente.')
+
+    // 5. Registrar en auditoría
     try {
       await db.logAudit({
         action: 'USER_CREATE',

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores'
 import { auth } from '@/services/supabase'
 import { supabase } from '@/services/supabase'
@@ -18,8 +18,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
 
   if (user) {
-    navigate('/dashboard', { replace: true })
-    return null
+    return <Navigate to="/dashboard" replace />
   }
 
   const handleSubmit = async (e) => {
