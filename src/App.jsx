@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores'
 import { isSuperAdminEmail, ROLE_PERMISSIONS } from './config'
-import { Toaster } from 'react-hot-toast'
+import { Toaster } from 'sonner'
 import { supabase } from './services/supabase'
 
 // Pages
@@ -60,15 +60,15 @@ const PermissionRoute = ({ permission, children }) => {
 
 function LoadingScreen() {
   return (
-    <div className="h-screen w-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}>
+    <div className="h-screen w-screen flex items-center justify-center bg-background">
       <div className="text-center">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
-          <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4 shadow-lg">
+          <svg className="w-7 h-7 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
-        <div className="spinner mx-auto mb-3" style={{ borderTopColor: '#818cf8', borderColor: 'rgba(255,255,255,0.1)' }} />
-        <p className="text-indigo-300 text-sm">Cargando...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
+        <p className="text-muted-foreground text-sm">Cargando...</p>
       </div>
     </div>
   )
@@ -153,30 +153,27 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected */}
+        {/* Protected - Layout with Sidebar */}
         <Route
-          path="/*"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Routes>
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/requests" element={<RequestsListPage />} />
-                  <Route path="/new-request" element={
-                    <PermissionRoute permission="create_request">
-                      <NewRequestPage />
-                    </PermissionRoute>
-                  } />
-                  <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
-                  <Route path="/audit" element={<AdminRoute><AuditPage /></AdminRoute>} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                </Routes>
-              </Layout>
+              <Layout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/requests" element={<RequestsListPage />} />
+          <Route path="/new-request" element={
+            <PermissionRoute permission="create_request">
+              <NewRequestPage />
+            </PermissionRoute>
+          } />
+          <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
+          <Route path="/audit" element={<AdminRoute><AuditPage /></AdminRoute>} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
       </Routes>
 
       <Toaster
@@ -184,8 +181,6 @@ export default function App() {
         toastOptions={{
           style: {
             borderRadius: '12px',
-            background: '#1e293b',
-            color: '#f8fafc',
             fontSize: '14px',
           },
         }}

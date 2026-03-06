@@ -1,60 +1,79 @@
-import React from 'react'
-import { useAuthStore } from '../stores'
-import { ROLE_LABELS, isSuperAdminEmail } from '../config'
+import { useState } from 'react'
+import { useAuthStore } from '@/stores'
+import { isSuperAdminEmail, ROLE_LABELS } from '@/config'
+import { db } from '@/services/supabase'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { User, Save } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function ProfilePage() {
-  const { userProfile, user } = useAuthStore()
-  const currentEmail = userProfile?.email || user?.email
-  const effectiveRole = isSuperAdminEmail(currentEmail) ? 'superadmin' : userProfile?.role
+  const { userProfile, user, setUserProfile } = useAuthStore()
+  const [name, setName] = useState(userProfile?.full_name || '')
+  const [loading, setLoading] = useState(false)
+
+  const effectiveRole = isSuperAdminEmail(userProfile?.email || user?.email)
+    ? 'superadmin'
+    : userProfile?.role
+
+  const handleSave = async () => {
+    if (!user?.id) return
+    setLoading(true)
+    try {
+      const updated = await db.updateUserProfile(user.id, { full_name: name.trim() })
+      if (updated) setUserProfile(updated)
+      toast.success('Perfil actualizado')
+    } catch (err) {
+      toast.error(err.message || 'Error al actualizar perfil')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const roleBadgeVariant = effectiveRole === 'superadmin' ? 'destructive' : effectiveRole === 'admin' ? 'default' : 'secondary'
 
   return (
-    <div className="max-w-lg animate-fade-in">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Mi Perfil</h1>
-
-      <div className="card p-6">
-        {/* Avatar */}
-        <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20">
-            <span className="text-white text-xl font-bold">
-              {(userProfile?.full_name || currentEmail || 'U').charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              {userProfile?.full_name || 'Sin nombre'}
-            </h2>
-            <span className={`badge mt-1 ${effectiveRole === 'superadmin' ? 'bg-amber-50 text-amber-700 border border-amber-200/60' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
-              {ROLE_LABELS[effectiveRole] || effectiveRole}
-            </span>
-          </div>
-        </div>
-
-        {/* Details */}
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Correo Electrónico</p>
-            <p className="text-sm font-medium text-slate-900 mt-0.5">{currentEmail || '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Teléfono</p>
-            <p className="text-sm font-medium text-slate-900 mt-0.5">{userProfile?.phone || 'No registrado'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Estado</p>
-            <span className={`badge mt-0.5 ${userProfile?.active !== false ? 'badge-completed' : 'badge-cancelled'}`}>
-              {userProfile?.active !== false ? 'Activo' : 'Inactivo'}
-            </span>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Miembro desde</p>
-            <p className="text-sm font-medium text-slate-900 mt-0.5">
-              {userProfile?.created_at ? new Date(userProfile.created_at).toLocaleDateString('es-CO', {
-                year: 'numeric', month: 'long', day: 'numeric'
-              }) : '—'}
-            </p>
-          </div>
-        </div>
+    <div className="max-w-lg mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Mi Perfil</h1>
+        <p className="text-sm text-muted-foreground">Información de tu cuenta</p>
       </div>
+
+      <Card className="shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <User className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-base">{userProfile?.full_name || user?.email}</CardTitle>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant={roleBadgeVariant} className="text-xs capitalize">
+                  {ROLE_LABELS[effectiveRole] || effectiveRole}
+                </Badge>
+                <span className="text-xs text-muted-foreground">{userProfile?.email || user?.email}</span>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Nombre completo</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" />
+          </div>
+          <div className="space-y-2">
+            <Label>Correo electrónico</Label>
+            <Input value={userProfile?.email || user?.email || ''} disabled className="opacity-60" />
+          </div>
+          <Button onClick={handleSave} disabled={loading} className="w-full">
+            <Save className="mr-2 h-4 w-4" />
+            {loading ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }

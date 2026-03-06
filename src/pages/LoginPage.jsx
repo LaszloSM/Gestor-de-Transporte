@@ -1,160 +1,88 @@
-import React, { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import toast from 'react-hot-toast'
-import { auth, supabase } from '../services/supabase'
-import { useAuthStore } from '../stores'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/stores'
+import { auth } from '@/services/supabase'
+import { supabase } from '@/services/supabase'
+import { Vote, LogIn } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 
 export default function LoginPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { setUser, setSession, setUserProfile } = useAuthStore()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    email: location.state?.email || '',
-    password: '',
-  })
+  const { user } = useAuthStore()
+  const navigate = useNavigate()
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+  if (user) {
+    navigate('/dashboard', { replace: true })
+    return null
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.email || !formData.password) {
-      toast.error('Completa todos los campos')
-      return
-    }
-
+    setError('')
     setLoading(true)
     try {
-      const { session, user } = await auth.signIn(formData.email, formData.password)
-      if (!session || !user) throw new Error('No se pudo crear la sesión')
-
-      setSession(session)
-      setUser(user)
-
-      const { data: profile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (profile) {
-        if (profile.active === false) {
-          await supabase.auth.signOut()
-          setSession(null)
-          setUser(null)
-          setUserProfile(null)
-          toast.error('Tu cuenta está desactivada. Contacta al administrador.')
-          return
-        }
-        setUserProfile(profile)
+      const { user: authUser, session } = await auth.signIn(email.trim(), password)
+      if (authUser) {
+        // Auth state change listener in App.jsx will handle updating the store
+        navigate('/dashboard')
       }
-      toast.success('¡Bienvenido!')
-      navigate('/dashboard')
-    } catch (error) {
-      const msg = error.message || ''
-      if (msg.includes('Invalid login credentials')) {
-        toast.error('Correo o contraseña incorrectos')
-      } else if (msg.includes('Email not confirmed')) {
-        toast.error('Confirma tu email antes de iniciar sesión')
-      } else {
-        toast.error(msg || 'Error al iniciar sesión')
-      }
+    } catch (err) {
+      setError(err.message || 'Credenciales inválidas o cuenta inactiva')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%)',
-    }}>
-      <div className="w-full max-w-md animate-slide-up">
-        {/* Brand */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
-            <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm shadow-lg border-border">
+        <CardHeader className="text-center space-y-3 pb-2">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
+            <Vote className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Transporte Electoral</h1>
-          <p className="text-indigo-300 mt-2 text-sm">Sistema de gestión de transporte de votantes</p>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
-          <div className="space-y-5">
-            <div className="form-group">
-              <label className="block text-sm font-semibold text-indigo-200 mb-1.5">Correo Electrónico</label>
-              <input
+          <CardTitle className="text-xl font-semibold">Transporte Electoral</CardTitle>
+          <CardDescription>Ingresa tus credenciales para acceder</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Correo electrónico</Label>
+              <Input
+                id="email"
                 type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all text-sm"
-                placeholder="tu@email.com"
+                placeholder="correo@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
-
-            <div className="form-group">
-              <label className="block text-sm font-semibold text-indigo-200 mb-1.5">Contraseña</label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
                 type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all text-sm"
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              <div className="mt-2 text-right">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!formData.email) {
-                      toast.error('Escribe tu correo para restablecer contraseña')
-                      return
-                    }
-                    try {
-                      await supabase.auth.resetPasswordForEmail(formData.email, {
-                        redirectTo: `${window.location.origin}/login`,
-                      })
-                      toast.success('Revisa tu correo para restablecer la contraseña')
-                    } catch (e) {
-                      toast.error(e.message || 'Error')
-                    }
-                  }}
-                  className="text-xs text-indigo-300 hover:text-white transition-colors"
-                >
-                  ¿Olvidaste tu contraseña?
-                </button>
-              </div>
             </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-6 py-3 rounded-xl font-semibold text-sm text-white transition-all duration-200 shadow-lg disabled:opacity-50"
-            style={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-            }}
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />
-                Iniciando sesión...
-              </span>
-            ) : 'Iniciar Sesión'}
-          </button>
-        </form>
-
-        <p className="text-center text-indigo-400/60 text-xs mt-6">
-          © 2026 Transporte Electoral · Todos los derechos reservados
-        </p>
-      </div>
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              <LogIn className="mr-2 h-4 w-4" />
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -40,14 +40,14 @@ export default function AssignmentModal({ request, isOpen, onClose, onAssign }) 
         setSelectedCoordinator(list[0].id)
       }
     } catch (_) {
-      toast.error('Error al cargar coordinadores')
+      toast.error('Error al cargar usuarios')
     }
   }
 
   const handleAssign = async () => {
     const coordinatorId = isAdminOrAbove ? selectedCoordinator : (userProfile?.id || user?.id)
     if (isAdminOrAbove && !coordinatorId) {
-      toast.error('Selecciona un coordinador')
+      toast.error('Selecciona un responsable')
       return
     }
 
@@ -61,7 +61,6 @@ export default function AssignmentModal({ request, isOpen, onClose, onAssign }) 
     try {
       const updated = await db.assignRequest(request.id, coordinatorId, { driver_name: dName, driver_phone: dPhone })
 
-      // Open WhatsApp
       try {
         const message = buildWhatsAppMessage(request)
         const url = `https://wa.me/${dPhone}?text=${encodeURIComponent(message)}`
@@ -73,7 +72,7 @@ export default function AssignmentModal({ request, isOpen, onClose, onAssign }) 
           message_content: message,
           status: 'sent',
         })
-      } catch (_) { /* best effort */ }
+      } catch (_) { }
 
       toast.success('Solicitud asignada. WhatsApp abierto.')
       onAssign(updated)
@@ -88,49 +87,57 @@ export default function AssignmentModal({ request, isOpen, onClose, onAssign }) 
   if (!isOpen) return null
 
   return (
-    <div className="modal-overlay animate-fade-in" onClick={onClose}>
-      <div className="modal-content max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-slate-900">Asignar Transporte</h2>
-          <button onClick={onClose} className="btn-icon">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-6 pt-6 pb-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Asignar Transporte</h2>
+              <p className="text-sm text-slate-500 mt-0.5">Asigna un conductor a esta solicitud.</p>
+            </div>
+            <button onClick={onClose} className="btn-icon">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Request summary */}
-        <div className="bg-slate-50 rounded-xl p-4 mb-5">
-          <p className="text-sm"><span className="font-semibold">Votante:</span> {request?.passenger_name}</p>
-          <p className="text-sm mt-1"><span className="font-semibold">Recogida:</span> {request?.origin}</p>
-          <p className="text-sm mt-1"><span className="font-semibold">Destino:</span> {request?.destination}</p>
+        <div className="mx-6 mt-3 bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <div className="space-y-1.5 text-sm">
+            <p><span className="font-medium text-slate-500">Votante:</span> <span className="text-slate-900">{request?.passenger_name}</span></p>
+            <p><span className="font-medium text-slate-500">Recogida:</span> <span className="text-slate-900">{request?.origin}</span></p>
+            <p><span className="font-medium text-slate-500">Destino:</span> <span className="text-slate-900">{request?.destination}</span></p>
+          </div>
         </div>
 
-        {/* Coordinator select (admin/superadmin only) */}
-        {isAdminOrAbove && (
-          <div className="form-group mb-4">
-            <label className="form-label">Coordinador Responsable</label>
-            {coordinators.length === 0 ? (
-              <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-xl">
-                No hay coordinadores activos.
-              </p>
-            ) : (
-              <select
-                value={selectedCoordinator}
-                onChange={(e) => setSelectedCoordinator(e.target.value)}
-                className="input-field"
-              >
-                <option value="">— Seleccionar —</option>
-                {coordinators.map((c) => (
-                  <option key={c.id} value={c.id}>{c.full_name || c.email}</option>
-                ))}
-              </select>
-            )}
-          </div>
-        )}
+        {/* Form */}
+        <div className="px-6 py-5 space-y-4">
+          {/* Coordinator select (admin/superadmin only) */}
+          {isAdminOrAbove && (
+            <div className="form-group">
+              <label className="form-label">Responsable</label>
+              {coordinators.length === 0 ? (
+                <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-100">
+                  No hay usuarios activos disponibles.
+                </p>
+              ) : (
+                <select
+                  value={selectedCoordinator}
+                  onChange={(e) => setSelectedCoordinator(e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">— Seleccionar —</option>
+                  {coordinators.map((c) => (
+                    <option key={c.id} value={c.id}>{c.full_name || c.email}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
-        {/* Driver info */}
-        <div className="space-y-3 mb-6">
           <div className="form-group">
             <label className="form-label">Nombre del Conductor</label>
             <input
@@ -154,8 +161,8 @@ export default function AssignmentModal({ request, isOpen, onClose, onAssign }) 
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-3">
+        {/* Footer */}
+        <div className="px-6 pb-6 flex gap-3">
           <button onClick={onClose} disabled={loading} className="flex-1 btn-secondary">
             Cancelar
           </button>
@@ -166,7 +173,8 @@ export default function AssignmentModal({ request, isOpen, onClose, onAssign }) 
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="spinner-sm" /> Asignando...
+                <span className="spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />
+                Asignando...
               </span>
             ) : 'Asignar y Enviar WhatsApp'}
           </button>

@@ -1,357 +1,243 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuthStore } from '@/stores'
+import { isSuperAdminEmail, SUPER_ADMIN_EMAIL, ROLE_LABELS } from '@/config'
+import { db } from '@/services/supabase'
+import { StatCard } from '@/components/dashboard/StatCard'
+import { Card } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Users as UsersIcon, Shield, User, PlusCircle, Pencil } from 'lucide-react'
+import { toast } from 'sonner'
 import { Navigate } from 'react-router-dom'
-import { useAuthStore } from '../stores'
-import { db } from '../services/supabase'
-import { ROLES, ROLE_LABELS, isSuperAdminEmail } from '../config'
-import toast from 'react-hot-toast'
 
 export default function UsersPage() {
-  const { userProfile, user, hasPermission, isSuperAdmin: checkIsSuperAdmin } = useAuthStore()
-  const canManage = hasPermission('manage_users')
-  const canCreateAdmin = hasPermission('create_admin')
-
-  // Role options based on permissions
-  const ROLE_OPTIONS = canCreateAdmin
-    ? [
-      { value: ROLES.ADMIN, label: ROLE_LABELS[ROLES.ADMIN] },
-      { value: ROLES.USUARIO, label: ROLE_LABELS[ROLES.USUARIO] },
-    ]
-    : [
-      { value: ROLES.USUARIO, label: ROLE_LABELS[ROLES.USUARIO] },
-    ]
-
+  const { userProfile, user } = useAuthStore()
   const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [updatingId, setUpdatingId] = useState(null)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [editingUser, setEditingUser] = useState(null)
-  const [formEdit, setFormEdit] = useState({ full_name: '', role: '', active: true })
-  const [formCreate, setFormCreate] = useState({ email: '', password: '', full_name: '', role: ROLES.USUARIO })
-  const [creating, setCreating] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editUser, setEditUser] = useState(null)
+  const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'usuario' })
+  const [actionLoading, setActionLoading] = useState(false)
+
+  const effectiveRole = isSuperAdminEmail(userProfile?.email || user?.email)
+    ? 'superadmin'
+    : userProfile?.role
+  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'superadmin'
+  const isSuperAdmin = effectiveRole === 'superadmin'
+
+  if (!isAdmin) return <Navigate to="/dashboard" replace />
 
   useEffect(() => {
-    if (canManage) loadUsers()
-  }, [canManage])
+    loadUsers()
+  }, [])
 
   const loadUsers = async () => {
     setLoading(true)
     try {
       const data = await db.getUsers()
-      setUsers(data || [])
-    } catch (_) {
-      toast.error('Error al cargar usuarios')
+      setUsers(data)
+    } catch (err) {
+      console.error('Error loading users:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const openEdit = (u) => {
-    setEditingUser(u)
-    setFormEdit({ full_name: u.full_name || '', role: u.role || ROLES.USUARIO, active: u.active !== false })
+  const stats = {
+    total: users.length,
+    admins: users.filter((u) => u.role === 'admin' || u.role === 'superadmin').length,
+    users: users.filter((u) => u.role === 'usuario').length,
+  }
+
+  const handleCreate = async () => {
+    if (!newUser.email || !newUser.password) {
+      toast.error('Completa los campos requeridos')
+      return
+    }
+    setActionLoading(true)
+    try {
+      await db.createUser(newUser.email, newUser.password, newUser.full_name, newUser.role)
+      toast.success(`Usuario ${newUser.email} creado`)
+      setCreateOpen(false)
+      setNewUser({ email: '', password: '', full_name: '', role: 'usuario' })
+      await loadUsers()
+    } catch (err) {
+      toast.error(err.message || 'Error al crear usuario')
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleSaveEdit = async () => {
-    if (!editingUser) return
-    setUpdatingId(editingUser.id)
+    if (!editUser) return
+    setActionLoading(true)
     try {
-      const payload = { full_name: formEdit.full_name.trim() || null, active: formEdit.active }
-      if (!isSuperAdminEmail(editingUser.email)) {
-        // Admin can't assign admin role unless they have create_admin permission
-        if (formEdit.role === 'admin' && !canCreateAdmin) {
-          toast.error('No tienes permiso para asignar el rol de Administrador')
-          return
-        }
-        payload.role = formEdit.role
-      }
-      await db.updateUserProfile(editingUser.id, payload)
-
-      // Audit log for role change
-      if (payload.role && payload.role !== editingUser.role) {
-        try {
-          await db.logAudit({
-            action: 'ROLE_CHANGE',
-            resource_type: 'user',
-            resource_id: editingUser.id,
-            old_values: { role: editingUser.role },
-            new_values: { role: payload.role },
-          })
-        } catch (_) { }
-      }
-
-      setUsers((prev) => prev.map((u) => u.id === editingUser.id ? { ...u, ...payload, role: payload.role ?? u.role } : u))
+      await db.updateUserProfile(editUser.id, {
+        full_name: editUser.full_name,
+        role: editUser.role,
+        active: editUser.active,
+      })
       toast.success('Usuario actualizado')
-      setEditingUser(null)
-    } catch (error) {
-      toast.error(error.message || 'Error al actualizar')
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  const handleToggleActive = async (u) => {
-    if (isSuperAdminEmail(u.email)) return
-    setUpdatingId(u.id)
-    try {
-      const newActive = !(u.active !== false)
-      await db.updateUserProfile(u.id, { active: newActive })
-      setUsers((prev) => prev.map((x) => x.id === u.id ? { ...x, active: newActive } : x))
-      toast.success(newActive ? 'Usuario reactivado' : 'Usuario desactivado')
-    } catch (error) {
-      toast.error(error.message || 'Error')
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  const handleCreateUser = async (e) => {
-    e?.preventDefault()
-    const { email, password, full_name, role } = formCreate
-    if (!email?.trim()) { toast.error('El correo es obligatorio'); return }
-    if (!password || password.length < 6) { toast.error('Contraseña mínima: 6 caracteres'); return }
-
-    // Prevent admin from creating admin users
-    if (role === 'admin' && !canCreateAdmin) {
-      toast.error('No tienes permiso para crear administradores')
-      return
-    }
-
-    setCreating(true)
-    try {
-      await db.createUser(email.trim(), password, full_name?.trim() || '', role || ROLES.USUARIO)
+      setEditUser(null)
       await loadUsers()
-      setShowCreateModal(false)
-      setFormCreate({ email: '', password: '', full_name: '', role: ROLES.USUARIO })
-      toast.success('Usuario creado exitosamente')
-    } catch (error) {
-      toast.error(error.message || 'Error al crear usuario')
+    } catch (err) {
+      toast.error(err.message || 'Error al actualizar')
     } finally {
-      setCreating(false)
+      setActionLoading(false)
     }
   }
 
-  if (!canManage) return <Navigate to="/dashboard" replace />
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="spinner" />
-      </div>
-    )
+  const roleBadge = (role) => {
+    const styles = {
+      superadmin: 'bg-red-100 text-red-800',
+      admin: 'bg-blue-100 text-blue-800',
+      usuario: 'bg-emerald-100 text-emerald-800',
+    }
+    return <Badge variant="secondary" className={`text-xs ${styles[role] || ''}`}>{ROLE_LABELS[role] || role}</Badge>
   }
+
+  const isProtectedUser = (u) => isSuperAdminEmail(u.email)
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Gestión de Usuarios</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Administra roles y accesos del sistema.</p>
+          <h1 className="text-2xl font-semibold">Usuarios</h1>
+          <p className="text-sm text-muted-foreground">Administración de usuarios del sistema</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-          + Crear Usuario
-        </button>
+        <Button onClick={() => setCreateOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Crear Usuario
+        </Button>
       </div>
 
-      {/* Users table */}
-      <div className="card overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard title="Total Usuarios" value={stats.total} icon={UsersIcon} />
+        <StatCard title="Administradores" value={stats.admins} icon={Shield} />
+        <StatCard title="Usuarios" value={stats.users} icon={User} />
+      </div>
+
+      <Card className="shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50/80 border-b border-slate-200">
-              <tr>
-                <th className="table-header">Nombre</th>
-                <th className="table-header">Email</th>
-                <th className="table-header">Rol</th>
-                <th className="table-header">Estado</th>
-                <th className="table-header text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const isSuperU = isSuperAdminEmail(u.email)
-                return (
-                  <tr key={u.id} className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${u.active === false ? 'opacity-50' : ''}`}>
-                    <td className="table-cell font-medium">{u.full_name || '—'}</td>
-                    <td className="table-cell text-slate-500 text-sm">{u.email}</td>
-                    <td className="table-cell">
-                      {isSuperU ? (
-                        <span className="badge bg-amber-50 text-amber-700 border border-amber-200/60">
-                          🔒 Superusuario
-                        </span>
-                      ) : (
-                        <span className="badge bg-slate-100 text-slate-700 border border-slate-200">
-                          {ROLE_LABELS[u.role] || u.role}
-                        </span>
-                      )}
-                    </td>
-                    <td className="table-cell">
-                      {u.active === false ? (
-                        <span className="badge badge-cancelled">Inactivo</span>
-                      ) : (
-                        <span className="badge badge-completed">Activo</span>
-                      )}
-                    </td>
-                    <td className="table-cell text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(u)} className="btn-ghost text-xs text-indigo-600">
-                          Editar
-                        </button>
-                        {!isSuperU && (
-                          <button
-                            onClick={() => handleToggleActive(u)}
-                            disabled={updatingId === u.id}
-                            className={`btn-ghost text-xs ${u.active !== false ? 'text-red-600' : 'text-emerald-600'}`}
-                          >
-                            {u.active !== false ? 'Desactivar' : 'Reactivar'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Rol</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell className="font-medium text-sm">{u.full_name || '—'}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
+                  <TableCell>{roleBadge(u.role)}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={u.active !== false ? 'secondary' : 'outline'}
+                      className={`text-xs ${u.active !== false ? 'bg-emerald-100 text-emerald-800' : 'text-muted-foreground'}`}
+                    >
+                      {u.active !== false ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {!isProtectedUser(u) && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditUser({ ...u })}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
-        {users.length === 0 && (
-          <div className="p-8 text-center text-slate-500 text-sm">No hay usuarios.</div>
-        )}
-      </div>
+      </Card>
 
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="modal-overlay animate-fade-in" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Crear Usuario</h2>
-                    <p className="text-xs text-slate-500">Registra un nuevo usuario en el sistema</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowCreateModal(false)} className="btn-icon hover:bg-slate-100 rounded-xl">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+      {/* Create User Modal */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><PlusCircle className="h-5 w-5" /> Crear Usuario</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Email *</Label>
+              <Input value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="correo@ejemplo.com" />
             </div>
-
-            {/* Modal Body */}
-            <form onSubmit={handleCreateUser} className="px-6 py-5 space-y-4">
-              <div className="form-group">
-                <label className="form-label">Correo Electrónico</label>
-                <input type="email" value={formCreate.email} onChange={(e) => setFormCreate(f => ({ ...f, email: e.target.value }))} className="input-field" placeholder="usuario@ejemplo.com" required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Contraseña</label>
-                <input type="password" value={formCreate.password} onChange={(e) => setFormCreate(f => ({ ...f, password: e.target.value }))} className="input-field" placeholder="Mínimo 6 caracteres" minLength={6} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nombre Completo</label>
-                <input type="text" value={formCreate.full_name} onChange={(e) => setFormCreate(f => ({ ...f, full_name: e.target.value }))} className="input-field" placeholder="Nombre del usuario" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Rol</label>
-                <select value={formCreate.role} onChange={(e) => setFormCreate(f => ({ ...f, role: e.target.value }))} className="input-field">
-                  {ROLE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                {!canCreateAdmin && (
-                  <p className="text-xs text-slate-400 mt-1">Solo los superusuarios pueden crear administradores.</p>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="flex gap-3 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => { setShowCreateModal(false); setFormCreate({ email: '', password: '', full_name: '', role: ROLES.USUARIO }) }} className="flex-1 btn-secondary">Cancelar</button>
-                <button type="submit" disabled={creating} className="flex-1 btn-primary">
-                  {creating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />
-                      Creando...
-                    </span>
-                  ) : 'Crear Usuario'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {editingUser && (
-        <div className="modal-overlay animate-fade-in" onClick={() => setEditingUser(null)}>
-          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Editar Usuario</h2>
-                    <p className="text-xs text-slate-500 truncate max-w-[240px]">{editingUser.email}</p>
-                  </div>
-                </div>
-                <button onClick={() => setEditingUser(null)} className="btn-icon hover:bg-slate-100 rounded-xl">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+            <div className="space-y-2">
+              <Label>Contraseña *</Label>
+              <Input type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
             </div>
-
-            {/* Modal Body */}
-            <div className="px-6 py-5 space-y-4">
-              <div className="form-group">
-                <label className="form-label">Nombre Completo</label>
-                <input type="text" value={formEdit.full_name} onChange={(e) => setFormEdit(f => ({ ...f, full_name: e.target.value }))} className="input-field" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Rol</label>
-                {isSuperAdminEmail(editingUser.email) ? (
-                  <p className="text-amber-700 font-semibold text-sm">🔒 Superusuario (no editable)</p>
-                ) : (
-                  <select value={formEdit.role} onChange={(e) => setFormEdit(f => ({ ...f, role: e.target.value }))} className="input-field">
-                    {ROLE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {!isSuperAdminEmail(editingUser.email) && (
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={formEdit.active} onChange={(e) => setFormEdit(f => ({ ...f, active: e.target.checked }))} className="rounded border-slate-300" />
-                  <span className="text-sm text-slate-700">Usuario activo</span>
-                </label>
-              )}
+            <div className="space-y-2">
+              <Label>Nombre completo</Label>
+              <Input value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} />
             </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setEditingUser(null)} className="flex-1 btn-secondary">Cancelar</button>
-              <button onClick={handleSaveEdit} disabled={updatingId === editingUser.id} className="flex-1 btn-primary">
-                {updatingId === editingUser.id ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="spinner-sm" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />
-                    Guardando...
-                  </span>
-                ) : 'Guardar'}
-              </button>
+            <div className="space-y-2">
+              <Label>Rol</Label>
+              <Select value={newUser.role} onValueChange={(v) => setNewUser({ ...newUser, role: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="usuario">Usuario</SelectItem>
+                  {isSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={actionLoading}>
+              {actionLoading ? 'Creando...' : 'Crear'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Modal */}
+      <Dialog open={!!editUser} onOpenChange={() => setEditUser(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-5 w-5" /> Editar Usuario</DialogTitle>
+          </DialogHeader>
+          {editUser && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nombre completo</Label>
+                <Input value={editUser.full_name || ''} onChange={(e) => setEditUser({ ...editUser, full_name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Rol</Label>
+                <Select value={editUser.role} onValueChange={(v) => setEditUser({ ...editUser, role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="usuario">Usuario</SelectItem>
+                    {isSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Activo</Label>
+                <Switch checked={editUser.active !== false} onCheckedChange={(v) => setEditUser({ ...editUser, active: v })} />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditUser(null)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit} disabled={actionLoading}>
+              {actionLoading ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

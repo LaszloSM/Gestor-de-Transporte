@@ -56,49 +56,56 @@ export default function RequestTable({ requests }) {
 
       {/* Detail Modal */}
       {selectedRequest && (
-        <div className="modal-overlay animate-fade-in" onClick={() => setSelectedRequest(null)}>
-          <div className="modal-content max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">{selectedRequest.passenger_name}</h2>
-                <span className={`badge badge-${selectedRequest.state} mt-1`}>
-                  {STATE_LABELS[selectedRequest.state] || selectedRequest.state}
-                </span>
+        <div className="modal-overlay" onClick={() => setSelectedRequest(null)}>
+          <div className="modal-content max-w-lg" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">{selectedRequest.passenger_name}</h2>
+                  <span className={`badge badge-${selectedRequest.state} mt-2`}>
+                    {STATE_LABELS[selectedRequest.state] || selectedRequest.state}
+                  </span>
+                </div>
+                <button onClick={() => setSelectedRequest(null)} className="btn-icon">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button onClick={() => setSelectedRequest(null)} className="btn-icon">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <Detail label="Teléfono" value={selectedRequest.passenger_phone} />
-              <Detail label="Recogida" value={selectedRequest.origin} />
-              <Detail label="Destino" value={selectedRequest.destination} />
-              <Detail label="Vehículo" value={VEHICLE_TYPE_LABELS[selectedRequest.vehicle_type] || selectedRequest.vehicle_type} />
-              <Detail label="Hora" value={selectedRequest.time} />
-              <Detail label="Cantidad" value={selectedRequest.quantity} />
-              {selectedRequest.driver_name && (
-                <Detail label="Conductor" value={selectedRequest.driver_name} />
-              )}
-              {selectedRequest.driver_phone && (
-                <Detail label="WhatsApp Conductor" value={selectedRequest.driver_phone} />
-              )}
-              <Detail label="Creado por" value={selectedRequest.created_by_user?.full_name || selectedRequest.created_by_user?.email || '—'} />
-              {selectedRequest.assigned_to_user && (
-                <Detail label="Asignado por" value={selectedRequest.assigned_to_user?.full_name || selectedRequest.assigned_to_user?.email} />
+            {/* Body */}
+            <div className="px-6 pb-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <Detail label="Teléfono" value={selectedRequest.passenger_phone} />
+                <Detail label="Recogida" value={selectedRequest.origin} />
+                <Detail label="Destino" value={selectedRequest.destination} />
+                <Detail label="Vehículo" value={VEHICLE_TYPE_LABELS[selectedRequest.vehicle_type] || selectedRequest.vehicle_type} />
+                <Detail label="Hora" value={selectedRequest.time} />
+                <Detail label="Cantidad" value={selectedRequest.quantity} />
+                {selectedRequest.driver_name && (
+                  <Detail label="Conductor" value={selectedRequest.driver_name} />
+                )}
+                {selectedRequest.driver_phone && (
+                  <Detail label="WhatsApp Conductor" value={selectedRequest.driver_phone} />
+                )}
+                <Detail label="Creado por" value={selectedRequest.created_by_user?.full_name || selectedRequest.created_by_user?.email || '—'} />
+                {selectedRequest.assigned_to_user && (
+                  <Detail label="Asignado por" value={selectedRequest.assigned_to_user?.full_name || selectedRequest.assigned_to_user?.email} />
+                )}
+              </div>
+
+              {selectedRequest.notes && (
+                <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 mb-1">Observaciones</p>
+                  <p className="text-sm text-slate-700">{selectedRequest.notes}</p>
+                </div>
               )}
             </div>
 
-            {selectedRequest.notes && (
-              <div className="mt-4 p-3 bg-slate-50 rounded-xl">
-                <p className="text-xs font-semibold text-slate-500 mb-1">Observaciones</p>
-                <p className="text-sm text-slate-700">{selectedRequest.notes}</p>
-              </div>
-            )}
-
-            <div className="mt-5 pt-4 border-t border-slate-100 text-xs text-slate-400">
+            {/* Footer */}
+            <div className="px-6 pb-6 pt-2 border-t border-slate-100 text-xs text-slate-400">
               <p>Creado: {selectedRequest.created_at ? new Date(selectedRequest.created_at).toLocaleString('es-CO') : '—'}</p>
               {selectedRequest.completed_at && (
                 <p>Completado: {new Date(selectedRequest.completed_at).toLocaleString('es-CO')}</p>
